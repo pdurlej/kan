@@ -18,6 +18,7 @@ export const openApiDocument = generateOpenApiDocument(appRouter, {
     "Labels",
     "Imports",
     "Integrations",
+    "Agent",
     "Health",
   ],
 });
