@@ -338,6 +338,14 @@ const resolveActivitySince = (input: {
   return undefined;
 };
 
+const getAuditActionForActivity = (activityType: string) => {
+  if (activityType === "card.created") return "create_card";
+  if (activityType === "card.updated.list") return "move_card";
+  if (activityType === "card.updated.comment.added") return "comment_card";
+
+  return null;
+};
+
 const performCreateCard = async (
   ctx: AgentContext,
   input: {
@@ -1290,8 +1298,9 @@ export const agentRouter = createTRPCRouter({
       const actorQuery = input.actor?.trim().toLowerCase();
       const cardActivities = rawCardActivities
         .map((activity) => {
+          const auditAction = getAuditActionForActivity(activity.type);
           const matchingAudit = agentAudit.find((audit) => {
-            if (audit.action !== "move_card") return false;
+            if (!auditAction || audit.action !== auditAction) return false;
             if (audit.cardPublicId !== activity.cardPublicId) return false;
 
             return (

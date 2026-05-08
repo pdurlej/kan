@@ -22,6 +22,8 @@ vi.mock("@kan/db/repository/agent.repo", () => ({
   ],
   createToken: vi.fn(),
   findBoardByName: vi.fn(),
+  getRecentAgentAudit: vi.fn(),
+  getRecentCardActivity: vi.fn(),
   getTokenBySecret: vi.fn(),
   touchToken: vi.fn(),
 }));
@@ -46,6 +48,11 @@ const mockFindBoardByName = agentRepo.findBoardByName as ReturnType<
 const mockGetTokenBySecret = agentRepo.getTokenBySecret as ReturnType<
   typeof vi.fn
 >;
+const mockGetRecentAgentAudit = agentRepo.getRecentAgentAudit as ReturnType<
+  typeof vi.fn
+>;
+const mockGetRecentCardActivity =
+  agentRepo.getRecentCardActivity as ReturnType<typeof vi.fn>;
 const mockTouchToken = agentRepo.touchToken as ReturnType<typeof vi.fn>;
 const mockGetAllByWorkspaceId = boardRepo.getAllByWorkspaceId as ReturnType<
   typeof vi.fn
@@ -212,6 +219,113 @@ describe("agent router", () => {
     expect(result).toEqual([
       { publicId: mockWorkspace.publicId, name: "Ops", default: true },
     ]);
+  });
+
+  it("attributes card activity to the matching agent audit action", async () => {
+    const { agentRouter } = await import("./agent");
+    const now = new Date("2026-05-09T01:34:27.800Z");
+
+    mockGetTokenBySecret.mockResolvedValueOnce({
+      ...mockAgentToken,
+      scopes: ["activity:read"],
+    });
+    mockWorkspaceGetByPublicId.mockResolvedValueOnce(mockWorkspace);
+    mockGetRecentCardActivity.mockResolvedValueOnce([
+      {
+        publicId: "activityCreate",
+        type: "card.created",
+        createdAt: now,
+        cardPublicId: "cardPublic01",
+        cardTitle: "Smoke card",
+        boardPublicId: "boardPublic1",
+        boardName: "AI Inbox",
+        fromListName: null,
+        toListName: null,
+        actorName: "pdurlej",
+        actorEmail: "p@durlej.com",
+        source: "signal",
+        sourceRef: "signal:+48:1",
+        createdByKind: "iskra",
+        sensitivity: "normal",
+      },
+      {
+        publicId: "activityMove",
+        type: "card.updated.list",
+        createdAt: new Date(now.getTime() + 100),
+        cardPublicId: "cardPublic01",
+        cardTitle: "Smoke card",
+        boardPublicId: "boardPublic1",
+        boardName: "AI Inbox",
+        fromListName: "Captured",
+        toListName: "Doing",
+        actorName: "pdurlej",
+        actorEmail: "p@durlej.com",
+        source: "signal",
+        sourceRef: "signal:+48:1",
+        createdByKind: "iskra",
+        sensitivity: "normal",
+      },
+    ]);
+    mockGetRecentAgentAudit.mockResolvedValueOnce([
+      {
+        publicId: "moveAudit01",
+        action: "move_card",
+        mode: "action",
+        actor: "OpenClaw Iskra MCP",
+        idempotencyKey: "move-key",
+        input: {},
+        result: {},
+        createdAt: new Date(now.getTime() + 110),
+        cardPublicId: "cardPublic01",
+        cardTitle: "Smoke card",
+        source: "signal",
+        sourceRef: "signal:+48:1",
+        createdByKind: "iskra",
+        sensitivity: "normal",
+      },
+      {
+        publicId: "createAudit01",
+        action: "create_card",
+        mode: "action",
+        actor: "OpenClaw Iskra MCP",
+        idempotencyKey: "create-key",
+        input: {},
+        result: {},
+        createdAt: new Date(now.getTime() + 10),
+        cardPublicId: "cardPublic01",
+        cardTitle: "Smoke card",
+        source: "signal",
+        sourceRef: "signal:+48:1",
+        createdByKind: "iskra",
+        sensitivity: "normal",
+      },
+    ]);
+
+    const ctx = {
+      user: null,
+      db: mockDb,
+      headers: new Headers({ authorization: "Bearer kan_agent_test" }),
+      requestId: "req-activity",
+    } as never;
+
+    const result = await agentRouter.createCaller(ctx).getRecentActivity({
+      workspacePublicId: mockWorkspace.publicId,
+      includeAgentAudit: true,
+      limit: 10,
+    });
+
+    expect(result.cardActivities[0]).toMatchObject({
+      type: "card.created",
+      actorKind: "agent",
+      displayActorName: "OpenClaw Iskra MCP",
+      agentAuditPublicId: "createAudit01",
+    });
+    expect(result.cardActivities[1]).toMatchObject({
+      type: "card.updated.list",
+      actorKind: "agent",
+      displayActorName: "OpenClaw Iskra MCP",
+      agentAuditPublicId: "moveAudit01",
+    });
   });
 
   it("requires workspace management permission to create an agent token", async () => {
