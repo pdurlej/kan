@@ -12,6 +12,10 @@ on:
         description: "Docker platforms to build"
         required: false
         default: "linux/amd64"
+      images:
+        description: "Images to build: all or mcp"
+        required: false
+        default: "all"
   push:
     # Only trigger on tags (releases), not main branch pushes
     # Main branch builds are handled by workflow_run after Translate completes
@@ -169,6 +173,7 @@ jobs:
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
       - name: Build and push Docker image
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.images != 'mcp' }}
         id: build-and-push
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
@@ -184,6 +189,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push migrate Docker image
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.images != 'mcp' }}
         id: build-and-push-migrate
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
@@ -218,7 +224,7 @@ jobs:
       # transparency data even for private images, pass --force to cosign below.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.images != 'mcp') }}
         env:
           # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
           TAGS: ${{ steps.meta.outputs.tags }}
@@ -228,7 +234,7 @@ jobs:
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
       - name: Sign the published migrate Docker image
-        if: ${{ github.event_name != 'pull_request' }}
+        if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.images != 'mcp') }}
         env:
           TAGS: ${{ steps.meta-migrate.outputs.tags }}
           DIGEST: ${{ steps.build-and-push-migrate.outputs.digest }}
