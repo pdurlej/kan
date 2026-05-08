@@ -25,6 +25,7 @@ env:
   # github.repository as <account>/<repo>
   IMAGE_NAME: ${{ github.repository }}
   MIGRATE_IMAGE_NAME: ${{ github.repository }}-migrate
+  MCP_IMAGE_NAME: ${{ github.repository }}-mcp
 
 jobs:
   build:
@@ -79,11 +80,14 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=raw,value=edge,enable={{is_default_branch}}
+            type=raw,value=main,enable={{is_default_branch}}
+            type=raw,value=rs2000,enable={{is_default_branch}}
 
       - name: Extract Docker metadata (migrate)
         id: meta-migrate
@@ -93,11 +97,31 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=sha,prefix=sha-,format=short
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
             type=raw,value=edge,enable={{is_default_branch}}
+            type=raw,value=main,enable={{is_default_branch}}
+            type=raw,value=rs2000,enable={{is_default_branch}}
+
+      - name: Extract Docker metadata (mcp)
+        id: meta-mcp
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.MCP_IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=raw,value=main,enable={{is_default_branch}}
+            type=raw,value=rs2000,enable={{is_default_branch}}
 
       # Extract version from git tag or ref
       # Uses git describe to get latest tag + commit hash in SemVer format: 1.2.3+abc1234
@@ -168,6 +192,19 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push MCP Docker image
+        id: build-and-push-mcp
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: .
+          file: packages/mcp/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta-mcp.outputs.tags }}
+          labels: ${{ steps.meta-mcp.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker
       # repository is public to avoid leaking data.  If you would like to publish
@@ -188,4 +225,11 @@ jobs:
         env:
           TAGS: ${{ steps.meta-migrate.outputs.tags }}
           DIGEST: ${{ steps.build-and-push-migrate.outputs.digest }}
+        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      - name: Sign the published MCP Docker image
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          TAGS: ${{ steps.meta-mcp.outputs.tags }}
+          DIGEST: ${{ steps.build-and-push-mcp.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
