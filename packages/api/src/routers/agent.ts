@@ -51,13 +51,16 @@ const cardMetadataInputSchema = z.object({
   lastAiSummary: z.string().max(5000).optional(),
 });
 
+const isoDateTimeSchema = z.string().datetime({ offset: true });
+const defaultOperationalTimeZone = "Europe/Warsaw";
+
 const proposedActionSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("create_card"),
     listPublicId: z.string().min(12),
     title: z.string().min(1).max(2000),
     description: z.string().max(10000).optional(),
-    dueDate: z.string().datetime().nullable().optional(),
+    dueDate: isoDateTimeSchema.nullable().optional(),
     metadata: cardMetadataInputSchema.optional(),
   }),
   z.object({
@@ -78,6 +81,10 @@ const writeResultSchema = z.object({
   title: z.string().optional(),
   listPublicId: z.string().optional(),
   auditPublicId: z.string().optional(),
+  actor: z.string().optional(),
+  mode: z.enum(["action"]).optional(),
+  idempotencyKey: z.string().nullable().optional(),
+  createdAt: z.date().optional(),
   idempotentReplay: z.boolean().optional(),
 });
 type WriteResult = z.infer<typeof writeResultSchema>;
@@ -241,6 +248,96 @@ const getIdempotencyKey = (
 const parseDueDate = (dueDate?: string | null) =>
   dueDate === undefined ? undefined : dueDate ? new Date(dueDate) : null;
 
+const getTimeZoneParts = (date: Date, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    year: value("year"),
+    month: value("month"),
+    day: value("day"),
+    hour: value("hour"),
+    minute: value("minute"),
+    second: value("second"),
+  };
+};
+
+const getTimeZoneOffsetMs = (date: Date, timeZone: string) => {
+  const parts = getTimeZoneParts(date, timeZone);
+  const asUtc = Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+  );
+
+  return asUtc - date.getTime();
+};
+
+const zonedDateTimeToUtc = (
+  input: {
+    year: number;
+    month: number;
+    day: number;
+    hour?: number;
+    minute?: number;
+    second?: number;
+  },
+  timeZone: string,
+) => {
+  const utcGuess = new Date(
+    Date.UTC(
+      input.year,
+      input.month - 1,
+      input.day,
+      input.hour ?? 0,
+      input.minute ?? 0,
+      input.second ?? 0,
+    ),
+  );
+  const offset = getTimeZoneOffsetMs(utcGuess, timeZone);
+
+  return new Date(utcGuess.getTime() - offset);
+};
+
+const getStartOfToday = (
+  timeZone = defaultOperationalTimeZone,
+  now = new Date(),
+) => {
+  const parts = getTimeZoneParts(now, timeZone);
+
+  return zonedDateTimeToUtc(
+    {
+      year: parts.year,
+      month: parts.month,
+      day: parts.day,
+    },
+    timeZone,
+  );
+};
+
+const resolveActivitySince = (input: {
+  since?: string;
+  today?: boolean;
+}) => {
+  if (input.since) return new Date(input.since);
+  if (input.today) return getStartOfToday();
+
+  return undefined;
+};
+
 const performCreateCard = async (
   ctx: AgentContext,
   input: {
@@ -261,7 +358,15 @@ const performCreateCard = async (
     idempotencyKey,
   });
   if (replay?.result) {
-    return { ...(replay.result as WriteResult), idempotentReplay: true };
+    return {
+      ...(replay.result as WriteResult),
+      auditPublicId: replay.publicId,
+      actor: replay.actor,
+      mode: "action",
+      idempotencyKey: replay.idempotencyKey,
+      createdAt: replay.createdAt,
+      idempotentReplay: true,
+    };
   }
 
   const list = await getListForAgent(
@@ -312,7 +417,14 @@ const performCreateCard = async (
     result,
   });
 
-  return { ...result, auditPublicId: audit?.publicId };
+  return {
+    ...result,
+    auditPublicId: audit?.publicId,
+    actor: ctx.agentToken.name,
+    mode: "action",
+    idempotencyKey,
+    createdAt: audit?.createdAt,
+  };
 };
 
 const performMoveCard = async (
@@ -333,7 +445,15 @@ const performMoveCard = async (
     idempotencyKey,
   });
   if (replay?.result) {
-    return { ...(replay.result as WriteResult), idempotentReplay: true };
+    return {
+      ...(replay.result as WriteResult),
+      auditPublicId: replay.publicId,
+      actor: replay.actor,
+      mode: "action",
+      idempotencyKey: replay.idempotencyKey,
+      createdAt: replay.createdAt,
+      idempotentReplay: true,
+    };
   }
 
   const card = await getCardForAgent(
@@ -405,7 +525,14 @@ const performMoveCard = async (
     result,
   });
 
-  return { ...result, auditPublicId: audit?.publicId };
+  return {
+    ...result,
+    auditPublicId: audit?.publicId,
+    actor: ctx.agentToken.name,
+    mode: "action",
+    idempotencyKey,
+    createdAt: audit?.createdAt,
+  };
 };
 
 const performCommentCard = async (
@@ -425,7 +552,15 @@ const performCommentCard = async (
     idempotencyKey,
   });
   if (replay?.result) {
-    return { ...(replay.result as WriteResult), idempotentReplay: true };
+    return {
+      ...(replay.result as WriteResult),
+      auditPublicId: replay.publicId,
+      actor: replay.actor,
+      mode: "action",
+      idempotencyKey: replay.idempotencyKey,
+      createdAt: replay.createdAt,
+      idempotentReplay: true,
+    };
   }
 
   const card = await getCardForAgent(
@@ -473,7 +608,14 @@ const performCommentCard = async (
     result,
   });
 
-  return { ...result, auditPublicId: audit?.publicId };
+  return {
+    ...result,
+    auditPublicId: audit?.publicId,
+    actor: ctx.agentToken.name,
+    mode: "action",
+    idempotencyKey,
+    createdAt: audit?.createdAt,
+  };
 };
 
 const aiInboxLists = [
@@ -1040,7 +1182,7 @@ export const agentRouter = createTRPCRouter({
         method: "GET",
         path: "/agent/workspaces/{workspacePublicId}/activity",
         description:
-          "Returns recent human and agent activity for recap questions.",
+          "Returns recent human and agent activity for recap questions. Datetimes accept timezone offsets and are normalized to UTC. Use today=true for the current Europe/Warsaw day.",
         tags: ["Agent"],
         protect: true,
       },
@@ -1049,9 +1191,13 @@ export const agentRouter = createTRPCRouter({
       z.object({
         workspacePublicId: z.string().min(12),
         boardPublicId: z.string().min(12).optional(),
-        since: z.string().datetime().optional(),
+        since: isoDateTimeSchema.optional(),
+        today: z.boolean().optional().default(false),
         onlyMoves: z.boolean().optional().default(false),
         includeAgentAudit: z.boolean().optional().default(true),
+        actor: z.string().min(1).max(255).optional(),
+        action: z.string().min(1).max(100).optional(),
+        source: agentSourceSchema.optional(),
         limit: z.number().min(1).max(100).optional().default(20),
       }),
     )
@@ -1070,17 +1216,33 @@ export const agentRouter = createTRPCRouter({
             toListName: z.string().nullable(),
             actorName: z.string().nullable(),
             actorEmail: z.string().nullable(),
+            actorKind: z.enum(["human", "agent"]),
+            displayActorName: z.string().nullable(),
+            viaAgentTokenName: z.string().nullable(),
+            agentAuditPublicId: z.string().nullable(),
+            source: agentSourceSchema.nullable(),
+            sourceRef: z.string().nullable(),
+            createdByKind: agentCreatedByKindSchema.nullable(),
+            sensitivity: agentSensitivitySchema.nullable(),
           }),
         ),
         agentAudit: z.array(
           z.object({
             publicId: z.string(),
+            auditPublicId: z.string(),
             action: z.string(),
             mode: z.string(),
             actor: z.string(),
             idempotencyKey: z.string().nullable(),
+            input: z.unknown().nullable(),
             result: z.unknown().nullable(),
             createdAt: z.date(),
+            cardPublicId: z.string().nullable(),
+            cardTitle: z.string().nullable(),
+            source: agentSourceSchema.nullable(),
+            sourceRef: z.string().nullable(),
+            createdByKind: agentCreatedByKindSchema.nullable(),
+            sensitivity: agentSensitivitySchema.nullable(),
           }),
         ),
       }),
@@ -1097,25 +1259,69 @@ export const agentRouter = createTRPCRouter({
         : null;
 
       const scopedBoardId = board?.id ?? ctx.agentToken.boardId;
+      const since = resolveActivitySince(input);
 
-      const [cardActivities, agentAudit] = await Promise.all([
+      const [rawCardActivities, rawAgentAudit] = await Promise.all([
         agentRepo.getRecentCardActivity(ctx.db, {
           workspaceId: workspace.id,
           boardId: scopedBoardId,
-          since: input.since ? new Date(input.since) : undefined,
+          since,
           onlyMoves: input.onlyMoves,
-          limit: input.limit,
+          limit: input.actor ? 100 : input.limit,
+          action: input.action,
+          source: input.source,
         }),
-        input.includeAgentAudit
-          ? agentRepo.getRecentAgentAudit(ctx.db, {
-              workspaceId: workspace.id,
-              boardId: scopedBoardId,
-              limit: input.limit,
-            })
-          : [],
+        agentRepo.getRecentAgentAudit(ctx.db, {
+          workspaceId: workspace.id,
+          boardId: scopedBoardId,
+          since,
+          limit: input.limit,
+          actor: input.actor,
+          action: input.action,
+          source: input.source,
+        }),
       ]);
 
-      return { cardActivities, agentAudit };
+      const agentAudit = rawAgentAudit.map((audit) => ({
+        ...audit,
+        auditPublicId: audit.publicId,
+      }));
+
+      const actorQuery = input.actor?.trim().toLowerCase();
+      const cardActivities = rawCardActivities
+        .map((activity) => {
+          const matchingAudit = agentAudit.find((audit) => {
+            if (audit.action !== "move_card") return false;
+            if (audit.cardPublicId !== activity.cardPublicId) return false;
+
+            return (
+              Math.abs(
+                audit.createdAt.getTime() - activity.createdAt.getTime(),
+              ) < 10_000
+            );
+          });
+          const displayActorName =
+            matchingAudit?.actor ?? activity.actorName ?? activity.actorEmail;
+
+          return {
+            ...activity,
+            actorKind: matchingAudit ? ("agent" as const) : ("human" as const),
+            displayActorName,
+            viaAgentTokenName: matchingAudit?.actor ?? null,
+            agentAuditPublicId: matchingAudit?.publicId ?? null,
+          };
+        })
+        .filter((activity) =>
+          actorQuery
+            ? activity.displayActorName?.toLowerCase().includes(actorQuery)
+            : true,
+        )
+        .slice(0, input.limit);
+
+      return {
+        cardActivities,
+        agentAudit: input.includeAgentAudit ? agentAudit : [],
+      };
     }),
 
   createCard: agentProcedure
@@ -1134,7 +1340,7 @@ export const agentRouter = createTRPCRouter({
         listPublicId: z.string().min(12),
         title: z.string().min(1).max(2000),
         description: z.string().max(10000).optional(),
-        dueDate: z.string().datetime().nullable().optional(),
+        dueDate: isoDateTimeSchema.nullable().optional(),
         metadata: cardMetadataInputSchema.optional(),
         idempotencyKey: z.string().max(255).optional(),
       }),
@@ -1352,6 +1558,11 @@ export const agentRouter = createTRPCRouter({
         publicId: z.string(),
         status: z.string(),
         results: z.array(writeResultSchema),
+        auditPublicId: z.string().optional(),
+        actor: z.string().optional(),
+        mode: z.enum(["action"]).optional(),
+        idempotencyKey: z.string().nullable().optional(),
+        createdAt: z.date().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -1408,7 +1619,7 @@ export const agentRouter = createTRPCRouter({
         appliedAt: new Date(),
       });
 
-      await agentRepo.createAuditEvent(ctx.db, {
+      const audit = await agentRepo.createAuditEvent(ctx.db, {
         tokenId: ctx.agentToken.id,
         workspaceId: proposal.workspaceId,
         boardId: proposal.boardId,
@@ -1425,6 +1636,11 @@ export const agentRouter = createTRPCRouter({
         publicId: proposal.publicId,
         status: "applied",
         results,
+        auditPublicId: audit?.publicId,
+        actor: ctx.agentToken.name,
+        mode: "action",
+        idempotencyKey: baseKey,
+        createdAt: audit?.createdAt,
       };
     }),
 

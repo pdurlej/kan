@@ -66,6 +66,8 @@ const metadataSchema = {
   lastAiSummary: z.string().max(5000).optional(),
 };
 
+const isoDateTimeSchema = z.string().datetime({ offset: true });
+
 const createProposedActionSchema = () =>
   z.discriminatedUnion("type", [
     z.object({
@@ -73,7 +75,7 @@ const createProposedActionSchema = () =>
       listPublicId: z.string().min(12),
       title: z.string().min(1).max(2000),
       description: z.string().max(10000).optional(),
-      dueDate: z.string().datetime().nullable().optional(),
+      dueDate: isoDateTimeSchema.nullable().optional(),
       metadata: z.object(metadataSchema).optional(),
     }),
     z.object({
@@ -221,13 +223,28 @@ const createServer = () => {
     {
       title: "Get recent activity",
       description:
-        "Get recent human card activity and agent audit events. If workspacePublicId is omitted, the token's default workspace is used.",
+        "Get recent human card activity and agent audit events. If workspacePublicId is omitted, the token's default workspace is used. Datetimes accept offsets and are normalized to UTC; use today=true for the current Europe/Warsaw day.",
       inputSchema: {
         workspacePublicId: z.string().min(12).optional(),
         boardPublicId: z.string().min(12).optional(),
-        since: z.string().datetime().optional(),
+        since: isoDateTimeSchema.optional(),
+        today: z.boolean().optional(),
         onlyMoves: z.boolean().optional(),
         includeAgentAudit: z.boolean().optional(),
+        actor: z.string().min(1).max(255).optional(),
+        action: z.string().min(1).max(100).optional(),
+        source: z
+          .enum([
+            "signal",
+            "fastmail",
+            "meeting",
+            "forgejo",
+            "manual",
+            "obsidian",
+            "iskra",
+            "n8n",
+          ])
+          .optional(),
         limit: z.number().int().min(1).max(100).optional(),
       },
     },
@@ -244,7 +261,7 @@ const createServer = () => {
         listPublicId: z.string().min(12),
         title: z.string().min(1).max(2000),
         description: z.string().max(10000).optional(),
-        dueDate: z.string().datetime().nullable().optional(),
+        dueDate: isoDateTimeSchema.nullable().optional(),
         metadata: z.object(metadataSchema).optional(),
         idempotencyKey: z.string().max(255).optional(),
       },
@@ -271,7 +288,7 @@ const createServer = () => {
         columnName: z.enum(aiInboxColumnNames).optional(),
         title: z.string().min(1).max(2000),
         description: z.string().max(10000).optional(),
-        dueDate: z.string().datetime().nullable().optional(),
+        dueDate: isoDateTimeSchema.nullable().optional(),
         metadata: z.object(metadataSchema).optional(),
         idempotencyKey: z.string().max(255).optional(),
       },

@@ -176,6 +176,9 @@ export const findAuditByIdempotencyKey = async (
     columns: {
       publicId: true,
       action: true,
+      mode: true,
+      actor: true,
+      idempotencyKey: true,
       result: true,
       createdAt: true,
     },
@@ -404,9 +407,19 @@ export const getRecentCardActivity = async (
     since?: Date;
     limit?: number;
     onlyMoves?: boolean;
+    actor?: string;
+    action?: string;
+    source?: AgentSource;
   },
 ) => {
   const limit = input.limit ?? 20;
+  const actorQuery = input.actor?.trim().toLowerCase();
+  const cardActivityAction =
+    input.action === "move_card"
+      ? eq(cardActivities.type, "card.updated.list")
+      : input.action
+        ? sql`false`
+        : undefined;
 
   return db
     .select({
@@ -424,11 +437,16 @@ export const getRecentCardActivity = async (
       actorUserId: users.id,
       actorName: users.name,
       actorEmail: users.email,
+      source: agentCardMetadata.source,
+      sourceRef: agentCardMetadata.sourceRef,
+      createdByKind: agentCardMetadata.createdByKind,
+      sensitivity: agentCardMetadata.sensitivity,
     })
     .from(cardActivities)
     .innerJoin(cards, eq(cardActivities.cardId, cards.id))
     .innerJoin(lists, eq(cards.listId, lists.id))
     .innerJoin(boards, eq(lists.boardId, boards.id))
+    .leftJoin(agentCardMetadata, eq(agentCardMetadata.cardId, cards.id))
     .leftJoin(fromList, eq(cardActivities.fromListId, fromList.id))
     .leftJoin(toList, eq(cardActivities.toListId, toList.id))
     .leftJoin(users, eq(cardActivities.createdBy, users.id))
@@ -440,6 +458,11 @@ export const getRecentCardActivity = async (
         input.onlyMoves
           ? eq(cardActivities.type, "card.updated.list")
           : undefined,
+        cardActivityAction,
+        actorQuery
+          ? sql`(lower(coalesce(${users.name}, '')) like ${`%${actorQuery}%`} or lower(coalesce(${users.email}, '')) like ${`%${actorQuery}%`})`
+          : undefined,
+        input.source ? eq(agentCardMetadata.source, input.source) : undefined,
         isNull(cards.deletedAt),
         isNull(lists.deletedAt),
         isNull(boards.deletedAt),
@@ -454,10 +477,15 @@ export const getRecentAgentAudit = async (
   input: {
     workspaceId: number;
     boardId?: number | null;
+    since?: Date;
     limit?: number;
+    actor?: string;
+    action?: string;
+    source?: AgentSource;
   },
 ) => {
   const limit = input.limit ?? 20;
+  const actorQuery = input.actor?.trim().toLowerCase();
 
   const rows = await db
     .select({
@@ -466,14 +494,29 @@ export const getRecentAgentAudit = async (
       mode: agentAuditEvents.mode,
       actor: agentAuditEvents.actor,
       idempotencyKey: agentAuditEvents.idempotencyKey,
+      input: agentAuditEvents.input,
       result: agentAuditEvents.result,
       createdAt: agentAuditEvents.createdAt,
+      cardPublicId: cards.publicId,
+      cardTitle: cards.title,
+      source: agentCardMetadata.source,
+      sourceRef: agentCardMetadata.sourceRef,
+      createdByKind: agentCardMetadata.createdByKind,
+      sensitivity: agentCardMetadata.sensitivity,
     })
     .from(agentAuditEvents)
+    .leftJoin(cards, eq(agentAuditEvents.cardId, cards.id))
+    .leftJoin(agentCardMetadata, eq(agentCardMetadata.cardId, cards.id))
     .where(
       and(
         eq(agentAuditEvents.workspaceId, input.workspaceId),
         input.boardId ? eq(agentAuditEvents.boardId, input.boardId) : undefined,
+        input.since ? gte(agentAuditEvents.createdAt, input.since) : undefined,
+        input.action ? eq(agentAuditEvents.action, input.action) : undefined,
+        actorQuery
+          ? sql`lower(${agentAuditEvents.actor}) like ${`%${actorQuery}%`}`
+          : undefined,
+        input.source ? eq(agentCardMetadata.source, input.source) : undefined,
       ),
     )
     .orderBy(desc(agentAuditEvents.createdAt))
@@ -481,6 +524,7 @@ export const getRecentAgentAudit = async (
 
   return rows.map((row) => ({
     ...row,
+    input: jsonParse<unknown>(row.input),
     result: jsonParse<unknown>(row.result),
   }));
 };

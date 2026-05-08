@@ -138,8 +138,12 @@ export class KanIntegrationClient {
     workspacePublicId?: string;
     boardPublicId?: string;
     since?: string;
+    today?: boolean;
     onlyMoves?: boolean;
     includeAgentAudit?: boolean;
+    actor?: string;
+    action?: string;
+    source?: string;
     limit?: number;
   }) {
     const workspacePublicId = await this.resolveWorkspacePublicId(
@@ -151,8 +155,12 @@ export class KanIntegrationClient {
       query: {
         boardPublicId: input.boardPublicId,
         since: input.since,
+        today: input.today,
         onlyMoves: input.onlyMoves,
         includeAgentAudit: input.includeAgentAudit,
+        actor: input.actor,
+        action: input.action,
+        source: input.source,
         limit: input.limit,
       },
     });
