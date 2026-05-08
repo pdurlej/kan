@@ -21,6 +21,7 @@ vi.mock("@kan/db/repository/agent.repo", () => ({
     "inbox:manage",
   ],
   createToken: vi.fn(),
+  findBoardByName: vi.fn(),
   getTokenBySecret: vi.fn(),
   touchToken: vi.fn(),
 }));
@@ -39,6 +40,9 @@ vi.mock("../utils/permissions", () => ({
 }));
 
 const mockCreateToken = agentRepo.createToken as ReturnType<typeof vi.fn>;
+const mockFindBoardByName = agentRepo.findBoardByName as ReturnType<
+  typeof vi.fn
+>;
 const mockGetTokenBySecret = agentRepo.getTokenBySecret as ReturnType<
   typeof vi.fn
 >;
@@ -79,6 +83,7 @@ describe("agent router", () => {
     vi.clearAllMocks();
     mockTouchToken.mockResolvedValue(undefined);
     mockAssertPermission.mockResolvedValue(undefined);
+    mockFindBoardByName.mockResolvedValue(null);
   });
 
   it("rejects agent requests without a bearer token", async () => {
@@ -149,6 +154,63 @@ describe("agent router", () => {
 
     expect(result).toEqual([
       { publicId: "boardScoped1", name: "AI Inbox", lists: [] },
+    ]);
+  });
+
+  it("returns default token context for MCP discovery", async () => {
+    const { agentRouter } = await import("./agent");
+
+    mockGetTokenBySecret.mockResolvedValueOnce(mockAgentToken);
+    mockFindBoardByName.mockResolvedValueOnce({
+      id: 88,
+      publicId: "aiInbox00001",
+      name: "AI Inbox",
+      lists: [
+        { publicId: "doing0000001", name: "Doing", index: 3 },
+        { publicId: "captured0001", name: "Captured", index: 0 },
+      ],
+    });
+
+    const ctx = {
+      user: null,
+      db: mockDb,
+      headers: new Headers({ authorization: "Bearer kan_agent_test" }),
+      requestId: "req-context",
+    } as never;
+
+    const result = await agentRouter.createCaller(ctx).getContext({});
+
+    expect(result).toEqual({
+      workspace: { publicId: mockWorkspace.publicId, name: "Ops" },
+      boardScope: null,
+      aiInbox: {
+        boardPublicId: "aiInbox00001",
+        name: "AI Inbox",
+        lists: [
+          { publicId: "captured0001", name: "Captured", index: 0 },
+          { publicId: "doing0000001", name: "Doing", index: 3 },
+        ],
+      },
+      scopes: ["boards:read"],
+    });
+  });
+
+  it("lists the token scoped workspace for discovery", async () => {
+    const { agentRouter } = await import("./agent");
+
+    mockGetTokenBySecret.mockResolvedValueOnce(mockAgentToken);
+
+    const ctx = {
+      user: null,
+      db: mockDb,
+      headers: new Headers({ authorization: "Bearer kan_agent_test" }),
+      requestId: "req-workspaces",
+    } as never;
+
+    const result = await agentRouter.createCaller(ctx).listWorkspaces({});
+
+    expect(result).toEqual([
+      { publicId: mockWorkspace.publicId, name: "Ops", default: true },
     ]);
   });
 

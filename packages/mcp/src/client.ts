@@ -62,9 +62,41 @@ export class KanIntegrationClient {
     return (await response.json()) as T;
   }
 
-  listBoards(input: { workspacePublicId: string }) {
+  getDefaultContext() {
+    return this.request<{
+      workspace: { publicId: string; name: string };
+      boardScope: { publicId: string; name: string } | null;
+      aiInbox: {
+        boardPublicId: string;
+        name: string;
+        lists: Array<{ publicId: string; name: string; index: number }>;
+      } | null;
+      scopes: string[];
+    }>({
+      path: "/agent/context",
+    });
+  }
+
+  listWorkspaces() {
     return this.request<unknown>({
-      path: `/agent/workspaces/${encodeURIComponent(input.workspacePublicId)}/boards`,
+      path: "/agent/workspaces",
+    });
+  }
+
+  private async resolveWorkspacePublicId(workspacePublicId?: string) {
+    if (workspacePublicId) return workspacePublicId;
+
+    const context = await this.getDefaultContext();
+    return context.workspace.publicId;
+  }
+
+  async listBoards(input: { workspacePublicId?: string } = {}) {
+    const workspacePublicId = await this.resolveWorkspacePublicId(
+      input.workspacePublicId,
+    );
+
+    return this.request<unknown>({
+      path: `/agent/workspaces/${encodeURIComponent(workspacePublicId)}/boards`,
     });
   }
 
@@ -81,13 +113,17 @@ export class KanIntegrationClient {
     });
   }
 
-  searchCards(input: {
-    workspacePublicId: string;
+  async searchCards(input: {
+    workspacePublicId?: string;
     query: string;
     limit?: number;
   }) {
+    const workspacePublicId = await this.resolveWorkspacePublicId(
+      input.workspacePublicId,
+    );
+
     return this.request<unknown>({
-      path: `/agent/workspaces/${encodeURIComponent(input.workspacePublicId)}/cards/search`,
+      path: `/agent/workspaces/${encodeURIComponent(workspacePublicId)}/cards/search`,
       query: { query: input.query, limit: input.limit },
     });
   }
@@ -98,16 +134,20 @@ export class KanIntegrationClient {
     });
   }
 
-  getRecentActivity(input: {
-    workspacePublicId: string;
+  async getRecentActivity(input: {
+    workspacePublicId?: string;
     boardPublicId?: string;
     since?: string;
     onlyMoves?: boolean;
     includeAgentAudit?: boolean;
     limit?: number;
   }) {
+    const workspacePublicId = await this.resolveWorkspacePublicId(
+      input.workspacePublicId,
+    );
+
     return this.request<unknown>({
-      path: `/agent/workspaces/${encodeURIComponent(input.workspacePublicId)}/activity`,
+      path: `/agent/workspaces/${encodeURIComponent(workspacePublicId)}/activity`,
       query: {
         boardPublicId: input.boardPublicId,
         since: input.since,
@@ -161,17 +201,21 @@ export class KanIntegrationClient {
     });
   }
 
-  proposeBoardUpdate(input: {
-    workspacePublicId: string;
+  async proposeBoardUpdate(input: {
+    workspacePublicId?: string;
     boardPublicId?: string;
     title: string;
     summary?: string;
     actions: unknown[];
   }) {
+    const workspacePublicId = await this.resolveWorkspacePublicId(
+      input.workspacePublicId,
+    );
+
     return this.request<unknown>({
       method: "POST",
       path: "/agent/proposals",
-      body: input,
+      body: { ...input, workspacePublicId },
     });
   }
 
@@ -187,7 +231,15 @@ export class KanIntegrationClient {
     });
   }
 
-  ensureAiInbox(input: { workspacePublicId: string }) {
+  ensureAiInbox(input: { workspacePublicId?: string } = {}) {
+    if (!input.workspacePublicId) {
+      return this.request<unknown>({
+        method: "POST",
+        path: "/agent/ai-inbox",
+        body: {},
+      });
+    }
+
     return this.request<unknown>({
       method: "POST",
       path: `/agent/workspaces/${encodeURIComponent(input.workspacePublicId)}/ai-inbox`,

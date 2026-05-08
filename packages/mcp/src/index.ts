@@ -89,6 +89,40 @@ const createProposedActionSchema = () =>
     }),
   ]);
 
+const aiInboxColumnNames = [
+  "Captured",
+  "Clarify",
+  "Ready",
+  "Doing",
+  "Waiting",
+  "Done / Archived",
+] as const;
+
+type AiInboxResult = {
+  boardPublicId: string;
+  lists: Array<{ publicId: string; name: string; index: number }>;
+};
+
+type SearchCardResult = {
+  publicId: string;
+  title: string;
+  boardPublicId: string;
+  listName: string;
+};
+
+const getAiInboxColumn = (inbox: unknown, columnName: string) => {
+  const result = inbox as AiInboxResult;
+  const column = result.lists.find(
+    (list) => list.name.toLowerCase() === columnName.toLowerCase(),
+  );
+
+  if (!column) {
+    throw new Error(`AI Inbox column not found: ${columnName}`);
+  }
+
+  return { inbox: result, column };
+};
+
 const createServer = () => {
   const server = new McpServer({
     name: "kan",
@@ -96,12 +130,35 @@ const createServer = () => {
   });
 
   server.registerTool(
+    "get_default_context",
+    {
+      title: "Get default context",
+      description:
+        "Return the workspace, optional board scope, existing AI Inbox, and scopes for this Kan integration token.",
+      inputSchema: {},
+    },
+    async () => jsonText(await client.getDefaultContext()),
+  );
+
+  server.registerTool(
+    "list_workspaces",
+    {
+      title: "List workspaces",
+      description:
+        "List the workspace visible to this Kan integration token. Tokens are intentionally scoped to one workspace.",
+      inputSchema: {},
+    },
+    async () => jsonText(await client.listWorkspaces()),
+  );
+
+  server.registerTool(
     "list_boards",
     {
       title: "List boards",
-      description: "List Kan boards visible to this integration token.",
+      description:
+        "List Kan boards visible to this integration token. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
-        workspacePublicId: z.string().min(12),
+        workspacePublicId: z.string().min(12).optional(),
       },
     },
     async (input) => jsonText(await client.listBoards(input)),
@@ -136,9 +193,10 @@ const createServer = () => {
     "search_cards",
     {
       title: "Search cards",
-      description: "Search Kan cards in a workspace.",
+      description:
+        "Search Kan cards in a workspace. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
-        workspacePublicId: z.string().min(12),
+        workspacePublicId: z.string().min(12).optional(),
         query: z.string().min(1).max(100),
         limit: z.number().int().min(1).max(50).optional(),
       },
@@ -162,9 +220,10 @@ const createServer = () => {
     "get_recent_activity",
     {
       title: "Get recent activity",
-      description: "Get recent human card activity and agent audit events.",
+      description:
+        "Get recent human card activity and agent audit events. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
-        workspacePublicId: z.string().min(12),
+        workspacePublicId: z.string().min(12).optional(),
         boardPublicId: z.string().min(12).optional(),
         since: z.string().datetime().optional(),
         onlyMoves: z.boolean().optional(),
@@ -202,6 +261,45 @@ const createServer = () => {
   );
 
   server.registerTool(
+    "create_ai_inbox_card",
+    {
+      title: "Create AI Inbox card",
+      description:
+        "Create a card in AI Inbox after an explicit human instruction. Defaults to the token workspace and Captured column.",
+      inputSchema: {
+        workspacePublicId: z.string().min(12).optional(),
+        columnName: z.enum(aiInboxColumnNames).optional(),
+        title: z.string().min(1).max(2000),
+        description: z.string().max(10000).optional(),
+        dueDate: z.string().datetime().nullable().optional(),
+        metadata: z.object(metadataSchema).optional(),
+        idempotencyKey: z.string().max(255).optional(),
+      },
+    },
+    async (input) => {
+      requireActionsEnabled();
+      const { column } = getAiInboxColumn(
+        await client.ensureAiInbox({
+          workspacePublicId: input.workspacePublicId,
+        }),
+        input.columnName ?? "Captured",
+      );
+
+      return jsonText(
+        await client.createCard({
+          listPublicId: column.publicId,
+          title: input.title,
+          description: input.description,
+          dueDate: input.dueDate,
+          metadata: input.metadata,
+          idempotencyKey:
+            input.idempotencyKey ?? `mcp:ai-inbox:create:${randomUUID()}`,
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
     "move_card",
     {
       title: "Move card",
@@ -220,6 +318,79 @@ const createServer = () => {
         await client.moveCard({
           ...input,
           idempotencyKey: input.idempotencyKey ?? `mcp:move:${randomUUID()}`,
+        }),
+      );
+    },
+  );
+
+  server.registerTool(
+    "move_ai_inbox_card",
+    {
+      title: "Move AI Inbox card",
+      description:
+        "Move one AI Inbox card after an explicit human instruction. Provide cardPublicId when known; otherwise provide query/title. Ambiguous title matches are returned without mutation.",
+      inputSchema: {
+        workspacePublicId: z.string().min(12).optional(),
+        cardPublicId: z.string().min(12).optional(),
+        query: z.string().min(1).max(100).optional(),
+        toColumnName: z.enum(aiInboxColumnNames),
+        index: z.number().int().min(0).optional(),
+        idempotencyKey: z.string().max(255).optional(),
+      },
+    },
+    async (input) => {
+      requireActionsEnabled();
+      const { inbox, column } = getAiInboxColumn(
+        await client.ensureAiInbox({
+          workspacePublicId: input.workspacePublicId,
+        }),
+        input.toColumnName,
+      );
+
+      let cardPublicId = input.cardPublicId;
+      if (!cardPublicId) {
+        if (!input.query) {
+          return jsonText({
+            ok: false,
+            reason: "cardPublicId_or_query_required",
+          });
+        }
+
+        const results = (await client.searchCards({
+          workspacePublicId: input.workspacePublicId,
+          query: input.query,
+          limit: 10,
+        })) as SearchCardResult[];
+        const candidates = results.filter(
+          (card) => card.boardPublicId === inbox.boardPublicId,
+        );
+        const exactMatches = candidates.filter(
+          (card) => card.title.toLowerCase() === input.query!.toLowerCase(),
+        );
+        const matches = exactMatches.length > 0 ? exactMatches : candidates;
+
+        if (matches.length !== 1) {
+          return jsonText({
+            ok: false,
+            reason: matches.length === 0 ? "card_not_found" : "ambiguous_card",
+            candidates: matches.map((card) => ({
+              publicId: card.publicId,
+              title: card.title,
+              listName: card.listName,
+            })),
+          });
+        }
+
+        cardPublicId = matches[0]!.publicId;
+      }
+
+      return jsonText(
+        await client.moveCard({
+          cardPublicId,
+          toListPublicId: column.publicId,
+          index: input.index,
+          idempotencyKey:
+            input.idempotencyKey ?? `mcp:ai-inbox:move:${randomUUID()}`,
         }),
       );
     },
@@ -253,9 +424,9 @@ const createServer = () => {
     {
       title: "Propose board update",
       description:
-        "Store a dry-run proposal for changes that should not be applied directly.",
+        "Store a dry-run proposal for changes that should not be applied directly. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
-        workspacePublicId: z.string().min(12),
+        workspacePublicId: z.string().min(12).optional(),
         boardPublicId: z.string().min(12).optional(),
         title: z.string().min(1).max(255),
         summary: z.string().max(5000).optional(),
@@ -291,9 +462,9 @@ const createServer = () => {
     {
       title: "Ensure AI Inbox",
       description:
-        "Create or return the AI Inbox board with the standard Kan columns.",
+        "Create or return the AI Inbox board with the standard Kan columns. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
-        workspacePublicId: z.string().min(12),
+        workspacePublicId: z.string().min(12).optional(),
       },
     },
     async (input) => jsonText(await client.ensureAiInbox(input)),

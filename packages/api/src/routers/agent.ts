@@ -146,6 +146,21 @@ const assertBoardScope = (token: AgentToken, boardId: number) => {
   }
 };
 
+const getDefaultWorkspaceForAgent = (token: AgentToken) => {
+  if (!token.workspace) {
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Agent token is missing its workspace relation",
+    });
+  }
+
+  return {
+    id: token.workspaceId,
+    publicId: token.workspace.publicId,
+    name: token.workspace.name,
+  };
+};
+
 const getWorkspaceForAgent = async (
   db: dbClient,
   token: AgentToken,
@@ -470,6 +485,100 @@ const aiInboxLists = [
   "Done / Archived",
 ] as const;
 
+const getVisibleAiInbox = async (db: dbClient, token: AgentToken) => {
+  const workspace = getDefaultWorkspaceForAgent(token);
+  const board = await agentRepo.findBoardByName(db, {
+    workspaceId: workspace.id,
+    name: "AI Inbox",
+  });
+
+  if (!board) return null;
+  if (token.boardId && token.boardId !== board.id) return null;
+
+  return {
+    boardPublicId: board.publicId,
+    name: board.name,
+    lists: board.lists.sort((a, b) => a.index - b.index),
+  };
+};
+
+const ensureAiInboxForWorkspace = async (
+  ctx: AgentContext,
+  workspace: { id: number; publicId: string },
+  auditInput: unknown,
+) => {
+  const existing = await agentRepo.findBoardByName(ctx.db, {
+    workspaceId: workspace.id,
+    name: "AI Inbox",
+  });
+
+  if (existing) {
+    assertBoardScope(ctx.agentToken, existing.id);
+
+    return {
+      boardPublicId: existing.publicId,
+      created: false,
+      lists: existing.lists.sort((a, b) => a.index - b.index),
+    };
+  }
+
+  if (ctx.agentToken.boardId) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Board-scoped agent tokens cannot create AI Inbox",
+    });
+  }
+
+  let slug = generateSlug("AI Inbox");
+  const slugAvailable = await boardRepo.isBoardSlugAvailable(
+    ctx.db,
+    slug,
+    workspace.id,
+  );
+  if (!slugAvailable) slug = `${slug}-${generateUID()}`;
+
+  const board = await boardRepo.create(ctx.db, {
+    name: "AI Inbox",
+    createdBy: ctx.agentToken.createdBy,
+    workspaceId: workspace.id,
+    slug,
+  });
+  if (!board) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+  const createdLists = [];
+  for (const name of aiInboxLists) {
+    createdLists.push(
+      await listRepo.create(ctx.db, {
+        name,
+        boardId: board.id,
+        createdBy: ctx.agentToken.createdBy,
+      }),
+    );
+  }
+
+  await agentRepo.createAuditEvent(ctx.db, {
+    tokenId: ctx.agentToken.id,
+    workspaceId: workspace.id,
+    boardId: board.id,
+    action: "ensure_ai_inbox",
+    mode: "setup",
+    actor: ctx.agentToken.name,
+    requestId: ctx.requestId,
+    input: auditInput,
+    result: { boardPublicId: board.publicId },
+  });
+
+  return {
+    boardPublicId: board.publicId,
+    created: true,
+    lists: createdLists.map((list, index) => ({
+      publicId: list.publicId,
+      name: list.name,
+      index,
+    })),
+  };
+};
+
 export const agentRouter = createTRPCRouter({
   createToken: protectedProcedure
     .meta({
@@ -539,6 +648,103 @@ export const agentRouter = createTRPCRouter({
         createdBy: userId,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       });
+    }),
+
+  getContext: agentProcedure
+    .meta({
+      openapi: {
+        summary: "Agent default context",
+        method: "GET",
+        path: "/agent/context",
+        description:
+          "Returns the workspace, optional board scope, and existing AI Inbox visible to this token.",
+        tags: ["Agent"],
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.object({
+        workspace: z.object({
+          publicId: z.string(),
+          name: z.string(),
+        }),
+        boardScope: z
+          .object({
+            publicId: z.string(),
+            name: z.string(),
+          })
+          .nullable(),
+        aiInbox: z
+          .object({
+            boardPublicId: z.string(),
+            name: z.string(),
+            lists: z.array(
+              z.object({
+                publicId: z.string(),
+                name: z.string(),
+                index: z.number(),
+              }),
+            ),
+          })
+          .nullable(),
+        scopes: z.array(agentScopeSchema),
+      }),
+    )
+    .query(async ({ ctx }) => {
+      assertScope(ctx.agentToken, "boards:read");
+      const workspace = getDefaultWorkspaceForAgent(ctx.agentToken);
+      const aiInbox = await getVisibleAiInbox(ctx.db, ctx.agentToken);
+
+      return {
+        workspace: {
+          publicId: workspace.publicId,
+          name: workspace.name,
+        },
+        boardScope: ctx.agentToken.board
+          ? {
+              publicId: ctx.agentToken.board.publicId,
+              name: ctx.agentToken.board.name,
+            }
+          : null,
+        aiInbox,
+        scopes: ctx.agentToken.scopes,
+      };
+    }),
+
+  listWorkspaces: agentProcedure
+    .meta({
+      openapi: {
+        summary: "Agent list workspaces",
+        method: "GET",
+        path: "/agent/workspaces",
+        description:
+          "Lists the workspace visible to this scoped agent token. Agent tokens are intentionally single-workspace.",
+        tags: ["Agent"],
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.array(
+        z.object({
+          publicId: z.string(),
+          name: z.string(),
+          default: z.boolean(),
+        }),
+      ),
+    )
+    .query(async ({ ctx }) => {
+      assertScope(ctx.agentToken, "boards:read");
+      const workspace = getDefaultWorkspaceForAgent(ctx.agentToken);
+
+      return [
+        {
+          publicId: workspace.publicId,
+          name: workspace.name,
+          default: true,
+        },
+      ];
     }),
 
   listBoards: agentProcedure
@@ -1254,66 +1460,42 @@ export const agentRouter = createTRPCRouter({
         ctx.agentToken,
         input.workspacePublicId,
       );
-      const existing = await agentRepo.findBoardByName(ctx.db, {
-        workspaceId: workspace.id,
-        name: "AI Inbox",
-      });
 
-      if (existing) {
-        return {
-          boardPublicId: existing.publicId,
-          created: false,
-          lists: existing.lists.sort((a, b) => a.index - b.index),
-        };
-      }
+      return ensureAiInboxForWorkspace(ctx, workspace, input);
+    }),
 
-      let slug = generateSlug("AI Inbox");
-      const slugAvailable = await boardRepo.isBoardSlugAvailable(
-        ctx.db,
-        slug,
-        workspace.id,
-      );
-      if (!slugAvailable) slug = `${slug}-${generateUID()}`;
-
-      const board = await boardRepo.create(ctx.db, {
-        name: "AI Inbox",
-        createdBy: ctx.agentToken.createdBy,
-        workspaceId: workspace.id,
-        slug,
-      });
-      if (!board) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
-
-      const createdLists = [];
-      for (const name of aiInboxLists) {
-        createdLists.push(
-          await listRepo.create(ctx.db, {
-            name,
-            boardId: board.id,
-            createdBy: ctx.agentToken.createdBy,
+  ensureDefaultAiInbox: agentProcedure
+    .meta({
+      openapi: {
+        summary: "Ensure default AI Inbox board",
+        method: "POST",
+        path: "/agent/ai-inbox",
+        description:
+          "Creates or returns AI Inbox in the token's default workspace.",
+        tags: ["Agent"],
+        protect: true,
+      },
+    })
+    .input(z.object({}))
+    .output(
+      z.object({
+        boardPublicId: z.string(),
+        created: z.boolean(),
+        lists: z.array(
+          z.object({
+            publicId: z.string(),
+            name: z.string(),
+            index: z.number(),
           }),
-        );
-      }
+        ),
+      }),
+    )
+    .mutation(async ({ ctx }) => {
+      assertScope(ctx.agentToken, "inbox:manage");
+      const workspace = getDefaultWorkspaceForAgent(ctx.agentToken);
 
-      await agentRepo.createAuditEvent(ctx.db, {
-        tokenId: ctx.agentToken.id,
-        workspaceId: workspace.id,
-        boardId: board.id,
-        action: "ensure_ai_inbox",
-        mode: "setup",
-        actor: ctx.agentToken.name,
-        requestId: ctx.requestId,
-        input,
-        result: { boardPublicId: board.publicId },
+      return ensureAiInboxForWorkspace(ctx, workspace, {
+        workspacePublicId: workspace.publicId,
       });
-
-      return {
-        boardPublicId: board.publicId,
-        created: true,
-        lists: createdLists.map((list, index) => ({
-          publicId: list.publicId,
-          name: list.name,
-          index,
-        })),
-      };
     }),
 });
