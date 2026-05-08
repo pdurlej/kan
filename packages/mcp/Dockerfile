@@ -43,4 +43,4 @@ ENV KAN_MCP_PORT=8086
 COPY --from=builder /app/ ./
 
 EXPOSE 8086
-CMD ["node", "packages/mcp/dist/index.js"]
+CMD ["node", "--import", "tsx", "packages/mcp/src/index.ts"]
