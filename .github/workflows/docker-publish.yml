@@ -6,6 +6,7 @@ name: Docker
 # documentation.
 
 on:
+  workflow_dispatch:
   push:
     # Only trigger on tags (releases), not main branch pushes
     # Main branch builds are handled by workflow_run after Translate completes
