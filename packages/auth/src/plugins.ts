@@ -10,12 +10,12 @@ import * as workspaceRepo from "@kan/db/repository/workspace.repo";
 import { sendEmail } from "@kan/email";
 import { createLogger } from "@kan/logger";
 import { generateUID } from "@kan/shared/utils";
-
-const log = createLogger("auth");
 import { createStripeClient } from "@kan/stripe";
 
 import { socialProvidersPlugin } from "./providers";
 import { triggerWorkflow } from "./utils";
+
+const log = createLogger("auth");
 
 export function createPlugins(db: dbClient) {
   return [
@@ -104,7 +104,10 @@ export function createPlugins(db: dbClient) {
                       unlimitedSeats: true,
                     },
                   );
-                  log.info({ subscriptionId: stripeSubscription.id }, "Pro subscription activated with unlimited seats");
+                  log.info(
+                    { subscriptionId: stripeSubscription.id },
+                    "Pro subscription activated with unlimited seats",
+                  );
 
                   const workspace = await workspaceRepo.getByPublicId(
                     db,
@@ -183,7 +186,10 @@ export function createPlugins(db: dbClient) {
       sendMagicLink: async ({ email, url }) => {
         try {
           const decodedUrl = decodeURIComponent(url);
-          log.info({ email, isInvite: decodedUrl.includes("type=invite") }, "Sending magic link");
+          log.info(
+            { email, isInvite: decodedUrl.includes("type=invite") },
+            "Sending magic link",
+          );
           if (decodedUrl.includes("type=invite")) {
             let inviterName = "";
             let workspaceName = "";
@@ -235,7 +241,7 @@ export function createPlugins(db: dbClient) {
               email,
               process.env.NEXT_PUBLIC_WHITE_LABEL_HIDE_POWERED_BY === "true"
                 ? "Sign in to your account"
-                : "Sign in to Kan",
+                : "Sign in to Kan-ductor",
               "MAGIC_LINK",
               {
                 magicLoginUrl: url,

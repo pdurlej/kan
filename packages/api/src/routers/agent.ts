@@ -18,12 +18,12 @@ type AgentToken = NonNullable<
   Awaited<ReturnType<typeof agentRepo.getTokenBySecret>>
 >;
 
-type AgentContext = {
+interface AgentContext {
   db: dbClient;
   headers: Headers;
   requestId: string;
   agentToken: AgentToken;
-};
+}
 
 const agentScopeSchema = z.enum(agentRepo.allAgentScopes);
 
@@ -154,13 +154,6 @@ const assertBoardScope = (token: AgentToken, boardId: number) => {
 };
 
 const getDefaultWorkspaceForAgent = (token: AgentToken) => {
-  if (!token.workspace) {
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: "Agent token is missing its workspace relation",
-    });
-  }
-
   return {
     id: token.workspaceId,
     publicId: token.workspace.publicId,
@@ -328,10 +321,7 @@ const getStartOfToday = (
   );
 };
 
-const resolveActivitySince = (input: {
-  since?: string;
-  today?: boolean;
-}) => {
+const resolveActivitySince = (input: { since?: string; today?: boolean }) => {
   if (input.since) return new Date(input.since);
   if (input.today) return getStartOfToday();
 
@@ -737,7 +727,7 @@ export const agentRouter = createTRPCRouter({
         method: "POST",
         path: "/agent/tokens",
         description:
-          "Creates a scoped machine token for Kan agent and MCP integrations.",
+          "Creates a scoped machine token for Kan-ductor agent and MCP integrations.",
         tags: ["Agent"],
         protect: true,
       },
@@ -884,7 +874,7 @@ export const agentRouter = createTRPCRouter({
         }),
       ),
     )
-    .query(async ({ ctx }) => {
+    .query(({ ctx }) => {
       assertScope(ctx.agentToken, "boards:read");
       const workspace = getDefaultWorkspaceForAgent(ctx.agentToken);
 

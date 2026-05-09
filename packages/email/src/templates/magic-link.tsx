@@ -38,12 +38,12 @@ export const MagicLinkTemplate = ({
             color: "#232323",
           }}
         >
-          kan.bn
+          Kan-ductor
         </Heading>
         <Heading
           style={{ fontSize: "24px", fontWeight: "bold", color: "#232323" }}
         >
-          Login to your Kan account
+          Login to your Kan-ductor account
         </Heading>
         <Text
           style={{
@@ -95,9 +95,9 @@ export const MagicLinkTemplate = ({
             target="_blank"
             style={{ color: "#7e7e7e", textDecoration: "underline" }}
           >
-            Kan
+            Kan-ductor
           </Link>
-          , the open source Trello alternative.
+          , a calm operational board for human and AI coordination.
         </Text>
       </Container>
     </Body>

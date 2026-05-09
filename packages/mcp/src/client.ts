@@ -55,7 +55,7 @@ export class KanIntegrationClient {
     if (!response.ok) {
       const text = await response.text();
       throw new Error(
-        `Kan Integration API ${response.status} ${response.statusText}: ${text}`,
+        `Kan-ductor Integration API ${response.status} ${response.statusText}: ${text}`,
       );
     }
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 import { t } from "@lingui/core/macro";
+import { useEffect } from "react";
+
 import { PageHead } from "~/components/PageHead";
 import PatternedBackground from "~/components/PatternedBackground";
 import { api } from "~/utils/api";
@@ -99,7 +100,7 @@ export default function PublicBoardsView() {
           className="text-lg font-bold tracking-tight text-neutral-900 dark:text-dark-1000"
           href="/"
         >
-          kan.bn
+          Kan-ductor
         </Link>
       </div>
     </>

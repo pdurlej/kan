@@ -22,13 +22,13 @@ open but not merged:
 - [#420 archive/trash](https://github.com/kanbn/kan/pull/420): aligned with the
   "no delete by default" direction, but currently not a clean drop-in.
 
-The fork needs a narrow operational board for a human and an AI assistant. The
+Kan-ductor needs a narrow operational board for a human and an AI assistant. The
 AI must be able to read, propose, and perform a few explicitly approved actions
 without becoming an autonomous project manager.
 
 ## Decision
 
-Kan keeps REST/OpenAPI as the stable integration boundary. MCP is a tool facade
+Kan-ductor keeps REST/OpenAPI as the stable integration boundary. MCP is a tool facade
 that calls the REST Integration API and never talks to the database directly.
 
 The integration surface is split into three paths:
@@ -40,7 +40,7 @@ The integration surface is split into three paths:
 Machine access uses a dedicated `agent_token` table instead of broad Better Auth
 API keys. Tokens are scoped to a workspace, optionally to one board, and to an
 explicit list of capabilities. Every write creates an `agent_audit_event` and a
-normal Kan card activity where relevant.
+normal Kan-ductor card activity where relevant.
 
 Deletes and bulk mutations are intentionally absent from the first surface.
 

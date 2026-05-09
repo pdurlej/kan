@@ -1,7 +1,7 @@
-# OpenClaw Kan MCP
+# OpenClaw Kan-ductor MCP
 
-This fork exposes Kan to Iskra/OpenClaw through a Streamable HTTP MCP server.
-The MCP server is intentionally thin: it calls the Kan Integration REST API and
+This fork exposes Kan-ductor to Iskra/OpenClaw through a Streamable HTTP MCP server.
+The MCP server is intentionally thin: it calls the Kan-ductor Integration REST API and
 does not connect to Postgres.
 
 ## Runtime
@@ -23,7 +23,7 @@ KAN_MCP_BEARER_TOKEN=...
 ```
 
 Use `KAN_MCP_BEARER_TOKEN` only if the OpenClaw/mcporter client supports custom
-authorization headers. Otherwise rely on the tailnet allowlist and keep the Kan
+authorization headers. Otherwise rely on the tailnet allowlist and keep the Kan-ductor
 agent token only on RS2000 inside the MCP service environment.
 
 ## Tools
@@ -50,7 +50,7 @@ Proposal tools:
 - `ensure_ai_inbox`
 
 `create_card`, `move_card`, `comment_card`, and `apply_approved_update` require
-`KAN_MCP_ACTIONS_ENABLED=true` and matching Kan agent-token scopes.
+`KAN_MCP_ACTIONS_ENABLED=true` and matching Kan-ductor agent-token scopes.
 
 ## OpenClaw/mcporter placement
 
@@ -86,7 +86,7 @@ If mcporter supports per-server headers, add:
 
 Do not put the internal `KAN_AGENT_TOKEN` into the OpenClaw client config unless
 there is no server-side MCP bridge. The preferred model is: OpenClaw gets the MCP
-URL, `kan-mcp` holds the Kan REST token.
+URL, `kan-mcp` holds the Kan-ductor REST token.
 
 ## Smoke Test
 

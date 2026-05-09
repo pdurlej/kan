@@ -40,7 +40,7 @@ const jsonText = (value: unknown) => ({
 const requireActionsEnabled = () => {
   if (!env.actionsEnabled) {
     throw new Error(
-      "Kan MCP action tools are disabled. Use propose_board_update or set KAN_MCP_ACTIONS_ENABLED=true.",
+      "Kan-ductor MCP action tools are disabled. Use propose_board_update or set KAN_MCP_ACTIONS_ENABLED=true.",
     );
   }
 };
@@ -136,7 +136,7 @@ const createServer = () => {
     {
       title: "Get default context",
       description:
-        "Return the workspace, optional board scope, existing AI Inbox, and scopes for this Kan integration token.",
+        "Return the workspace, optional board scope, existing AI Inbox, and scopes for this Kan-ductor integration token.",
       inputSchema: {},
     },
     async () => jsonText(await client.getDefaultContext()),
@@ -147,7 +147,7 @@ const createServer = () => {
     {
       title: "List workspaces",
       description:
-        "List the workspace visible to this Kan integration token. Tokens are intentionally scoped to one workspace.",
+        "List the workspace visible to this Kan-ductor integration token. Tokens are intentionally scoped to one workspace.",
       inputSchema: {},
     },
     async () => jsonText(await client.listWorkspaces()),
@@ -158,7 +158,7 @@ const createServer = () => {
     {
       title: "List boards",
       description:
-        "List Kan boards visible to this integration token. If workspacePublicId is omitted, the token's default workspace is used.",
+        "List Kan-ductor boards visible to this integration token. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
         workspacePublicId: z.string().min(12).optional(),
       },
@@ -170,7 +170,7 @@ const createServer = () => {
     "list_columns",
     {
       title: "List columns",
-      description: "List columns for a Kan board.",
+      description: "List columns for a Kan-ductor board.",
       inputSchema: {
         boardPublicId: z.string().min(12),
       },
@@ -196,7 +196,7 @@ const createServer = () => {
     {
       title: "Search cards",
       description:
-        "Search Kan cards in a workspace. If workspacePublicId is omitted, the token's default workspace is used.",
+        "Search Kan-ductor cards in a workspace. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
         workspacePublicId: z.string().min(12).optional(),
         query: z.string().min(1).max(100),
@@ -256,7 +256,7 @@ const createServer = () => {
     {
       title: "Create card",
       description:
-        "Create a Kan card after an explicit human instruction. Writes are audited.",
+        "Create a Kan-ductor card after an explicit human instruction. Writes are audited.",
       inputSchema: {
         listPublicId: z.string().min(12),
         title: z.string().min(1).max(2000),
@@ -321,7 +321,7 @@ const createServer = () => {
     {
       title: "Move card",
       description:
-        "Move a Kan card after an explicit human instruction. Writes are audited.",
+        "Move a Kan-ductor card after an explicit human instruction. Writes are audited.",
       inputSchema: {
         cardPublicId: z.string().min(12),
         toListPublicId: z.string().min(12),
@@ -418,7 +418,7 @@ const createServer = () => {
     {
       title: "Comment card",
       description:
-        "Add a Kan card comment after an explicit human instruction. Writes are audited.",
+        "Add a Kan-ductor card comment after an explicit human instruction. Writes are audited.",
       inputSchema: {
         cardPublicId: z.string().min(12),
         comment: z.string().min(1).max(10000),
@@ -457,7 +457,7 @@ const createServer = () => {
     "apply_approved_update",
     {
       title: "Apply approved update",
-      description: "Apply a previously approved Kan agent proposal.",
+      description: "Apply a previously approved Kan-ductor agent proposal.",
       inputSchema: {
         proposalPublicId: z.string().min(12),
         idempotencyKey: z.string().max(255).optional(),
@@ -479,7 +479,7 @@ const createServer = () => {
     {
       title: "Ensure AI Inbox",
       description:
-        "Create or return the AI Inbox board with the standard Kan columns. If workspacePublicId is omitted, the token's default workspace is used.",
+        "Create or return the AI Inbox board with the standard AI Inbox columns. If workspacePublicId is omitted, the token's default workspace is used.",
       inputSchema: {
         workspacePublicId: z.string().min(12).optional(),
       },

@@ -39,7 +39,7 @@ export default function SignUpPage() {
             <div className="z-10 flex w-full flex-col items-center">
               <Link href="/">
                 <h1 className="mb-6 text-lg font-bold tracking-tight text-light-1000 dark:text-dark-1000">
-                  kan.bn
+                  Kan-ductor
                 </h1>
               </Link>
               <p className="mb-10 text-3xl font-bold tracking-tight text-light-1000 dark:text-dark-1000">
@@ -64,7 +64,7 @@ export default function SignUpPage() {
           <div className="z-10 flex w-full flex-col items-center">
             <Link href="/">
               <h1 className="mb-6 text-lg font-bold tracking-tight text-light-1000 dark:text-dark-1000">
-                kan.bn
+                Kan-ductor
               </h1>
             </Link>
             <p className="mb-10 text-3xl font-bold tracking-tight text-light-1000 dark:text-dark-1000">

@@ -19,7 +19,7 @@ export default function HomeView() {
 
   return (
     <Layout>
-      <PageHead title="Kan.bn | The open source alternative to Trello" />
+      <PageHead title="Kan-ductor | Calm operational board for humans and AI" />
       <div className="flex h-full w-full flex-col lg:pt-[5rem]">
         <div className="w-full pb-10 pt-32 lg:py-32">
           <div className="my-10 flex h-full w-full animate-fade-down flex-col items-center justify-center px-4">

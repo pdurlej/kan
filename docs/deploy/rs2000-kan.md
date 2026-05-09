@@ -1,7 +1,8 @@
-# RS2000 Kan Deployment
+# RS2000 Kan-ductor Deployment
 
 Target:
 
+- Product name: Kan-ductor
 - Public name: `kan.pdurlej.com`
 - Tailscale RS2000 address: `100.110.188.20`
 - OpenClaw/VPS1000 Tailscale address: `100.79.239.52`
@@ -31,7 +32,7 @@ Expected compose services in the RS2000 infra repo:
 
 - `kan-postgres`: private Postgres with its own volume.
 - `kan-migrate`: run-once migration container using the `kan-migrate` image.
-- `kan-web`: Next.js Kan app.
+- `kan-web`: Next.js Kan-ductor app.
 - `kan-mcp`: Streamable HTTP MCP bridge.
 
 Expected networks:
@@ -64,7 +65,7 @@ Use immutable image tags when promoting:
 - `ghcr.io/pdurlej/kan-mcp:sha-<shortsha>`
 
 Rollback is switching `KAN_IMAGE_TAG` or equivalent infra variable back to the
-previous known-good SHA tag and restarting only Kan services.
+previous known-good SHA tag and restarting only Kan-ductor services.
 
 ## Acceptance
 

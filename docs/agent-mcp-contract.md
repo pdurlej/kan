@@ -1,4 +1,4 @@
-# Kan Agent MCP Contract
+# Kan-ductor Agent MCP Contract
 
 This fork optimizes for Piotr + Iskra's operational loop:
 
@@ -8,7 +8,7 @@ It is not trying to become a generic MCP-complete project management API.
 
 ## First-Class Discovery Flow
 
-An assistant must be able to start with no remembered Kan IDs:
+An assistant must be able to start with no remembered Kan-ductor IDs:
 
 1. `get_default_context`
 2. `ensure_ai_inbox`
@@ -80,7 +80,7 @@ If both `since` and `today` are provided, `since` wins.
 
 ## Activity And Audit Attribution
 
-Kan's regular card activity may still have a technical user attached, but the
+Kan-ductor's regular card activity may still have a technical user attached, but the
 agent read path must not imply that Piotr manually moved a card when Iskra did.
 
 `get_recent_activity.cardActivities[]` includes:
@@ -137,7 +137,7 @@ answer:
 
 ## Smoke Test
 
-Run from a host allowed to reach Kan MCP, currently VPS1000:
+Run from a host allowed to reach Kan-ductor MCP, currently VPS1000:
 
 ```bash
 KAN_MCP_URL=https://kan.pdurlej.com/mcp \

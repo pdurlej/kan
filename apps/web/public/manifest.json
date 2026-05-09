@@ -1,11 +1,7 @@
 {
   "background_color": "#000000",
-  "categories": [
-    "business",
-    "productivity",
-    "utilities"
-  ],
-  "description": "The open source Trello alternative.",
+  "categories": ["business", "productivity", "utilities"],
+  "description": "A calm operational board for human and AI coordination.",
   "display": "standalone",
   "icons": [
     {
@@ -31,9 +27,9 @@
     }
   ],
   "orientation": "portrait-primary",
-  "name": "Kan.bn | The open source alternative to Trello",
+  "name": "Kan-ductor",
   "scope": "/",
-  "short_name": "Kan.bn",
+  "short_name": "Kan-ductor",
   "start_url": "/",
   "theme_color": "#000000"
 }

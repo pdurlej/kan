@@ -4,8 +4,8 @@ import { generateOpenApiDocument } from "trpc-to-openapi";
 import { appRouter } from "./root";
 
 export const openApiDocument = generateOpenApiDocument(appRouter, {
-  title: "Kan API",
-  description: "OpenAPI compliant REST API",
+  title: "Kan-ductor API",
+  description: "OpenAPI compliant REST API for Kan-ductor",
   version: "1.0.0",
   baseUrl: `${env("NEXT_PUBLIC_BASE_URL")}/api/v1`,
   docsUrl: "docs.kan.bn",

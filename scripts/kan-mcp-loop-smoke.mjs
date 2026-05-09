@@ -3,7 +3,7 @@
 const url = process.env.KAN_MCP_URL ?? "https://kan.pdurlej.com/mcp";
 const id = process.env.KAN_SMOKE_ID ?? `smoke-${new Date().toISOString()}`;
 const title =
-  process.env.KAN_SMOKE_TITLE ?? `E2E smoke: Signal to Kan ${id}`;
+  process.env.KAN_SMOKE_TITLE ?? `E2E smoke: Signal to Kan-ductor ${id}`;
 
 const request = async (method, params, requestId) => {
   const response = await fetch(url, {
@@ -25,9 +25,7 @@ const request = async (method, params, requestId) => {
     throw new Error(`MCP ${response.status}: ${raw}`);
   }
 
-  const dataLine = raw
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("data: "));
+  const dataLine = raw.split(/\r?\n/).find((line) => line.startsWith("data: "));
   if (!dataLine) throw new Error(`No MCP data frame: ${raw}`);
 
   const parsed = JSON.parse(dataLine.slice("data: ".length));
@@ -54,7 +52,7 @@ const assert = (condition, message) => {
 const createKey = `${id}:create`;
 const moveKey = `${id}:move`;
 
-console.log(`Kan MCP smoke: ${title}`);
+console.log(`Kan-ductor MCP smoke: ${title}`);
 
 await callTool("ensure_ai_inbox", {}, 1);
 
@@ -63,22 +61,28 @@ const created = await callTool(
   {
     title,
     columnName: "Captured",
-    description: "Automated smoke for Signal -> Iskra -> Kan MCP loop.",
+    description: "Automated smoke for Signal -> Iskra -> Kan-ductor MCP loop.",
     metadata: {
       source: "signal",
       sourceRef: `signal:+48508463453:${id}`,
       createdByKind: "iskra",
       sensitivity: "normal",
-      lastAiSummary: "Smoke card created through Kan MCP.",
+      lastAiSummary: "Smoke card created through Kan-ductor MCP.",
     },
     idempotencyKey: createKey,
   },
   2,
 );
 assert(created.publicId, "create_ai_inbox_card did not return a card publicId");
-assert(created.auditPublicId, "create_ai_inbox_card did not return auditPublicId");
+assert(
+  created.auditPublicId,
+  "create_ai_inbox_card did not return auditPublicId",
+);
 assert(created.actor, "create_ai_inbox_card did not return actor");
-assert(created.mode === "action", "create_ai_inbox_card did not return action mode");
+assert(
+  created.mode === "action",
+  "create_ai_inbox_card did not return action mode",
+);
 
 const replayedCreate = await callTool(
   "create_ai_inbox_card",
@@ -95,8 +99,14 @@ const replayedCreate = await callTool(
   },
   3,
 );
-assert(replayedCreate.publicId === created.publicId, "create idempotency replay returned a different card");
-assert(replayedCreate.idempotentReplay === true, "create idempotency replay was not marked");
+assert(
+  replayedCreate.publicId === created.publicId,
+  "create idempotency replay returned a different card",
+);
+assert(
+  replayedCreate.idempotentReplay === true,
+  "create idempotency replay was not marked",
+);
 
 const moved = await callTool(
   "move_ai_inbox_card",
@@ -107,10 +117,16 @@ const moved = await callTool(
   },
   4,
 );
-assert(moved.publicId === created.publicId, "move_ai_inbox_card moved the wrong card");
+assert(
+  moved.publicId === created.publicId,
+  "move_ai_inbox_card moved the wrong card",
+);
 assert(moved.auditPublicId, "move_ai_inbox_card did not return auditPublicId");
 assert(moved.actor, "move_ai_inbox_card did not return actor");
-assert(moved.mode === "action", "move_ai_inbox_card did not return action mode");
+assert(
+  moved.mode === "action",
+  "move_ai_inbox_card did not return action mode",
+);
 
 const replayedMove = await callTool(
   "move_ai_inbox_card",
@@ -121,8 +137,14 @@ const replayedMove = await callTool(
   },
   5,
 );
-assert(replayedMove.publicId === created.publicId, "move idempotency replay returned a different card");
-assert(replayedMove.idempotentReplay === true, "move idempotency replay was not marked");
+assert(
+  replayedMove.publicId === created.publicId,
+  "move idempotency replay returned a different card",
+);
+assert(
+  replayedMove.idempotentReplay === true,
+  "move idempotency replay was not marked",
+);
 
 const activity = await callTool(
   "get_recent_activity",
@@ -139,7 +161,10 @@ const moveActivity = activity.cardActivities?.find(
   (item) => item.cardPublicId === created.publicId,
 );
 assert(moveActivity, "recent activity did not include the move");
-assert(moveActivity.actorKind === "agent", "move activity is not attributed to an agent");
+assert(
+  moveActivity.actorKind === "agent",
+  "move activity is not attributed to an agent",
+);
 assert(
   moveActivity.displayActorName === moved.actor,
   "move activity display actor does not match the agent actor",

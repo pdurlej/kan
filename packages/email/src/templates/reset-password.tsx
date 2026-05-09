@@ -12,14 +12,13 @@ import { env } from "next-runtime-env";
 
 export const ResetPasswordTemplate = ({
   resetPasswordUrl,
-  resetPasswordToken,
 }: {
   resetPasswordUrl?: string;
   resetPasswordToken?: string;
 }) => (
   <Html>
     <Head />
-    <Preview>Reset your Kan password</Preview>
+    <Preview>Reset your Kan-ductor password</Preview>
     <Body style={{ backgroundColor: "white" }}>
       <Container
         style={{
@@ -39,12 +38,12 @@ export const ResetPasswordTemplate = ({
             color: "#232323",
           }}
         >
-          kan.bn
+          Kan-ductor
         </Heading>
         <Heading
           style={{ fontSize: "24px", fontWeight: "bold", color: "#232323" }}
         >
-          Reset your Kan password
+          Reset your Kan-ductor password
         </Heading>
         <Text
           style={{
@@ -81,7 +80,8 @@ export const ResetPasswordTemplate = ({
             color: "#7e7e7e",
           }}
         >
-          If you didn&apos;t try to reset your password, you can safely ignore this email.
+          If you didn&apos;t try to reset your password, you can safely ignore
+          this email.
         </Text>
         <Hr
           style={{
@@ -96,9 +96,9 @@ export const ResetPasswordTemplate = ({
             target="_blank"
             style={{ color: "#7e7e7e", textDecoration: "underline" }}
           >
-            Kan
+            Kan-ductor
           </Link>
-          , the open source Trello alternative.
+          , a calm operational board for human and AI coordination.
         </Text>
       </Container>
     </Body>
