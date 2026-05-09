@@ -44,6 +44,14 @@ export type AgentTokenRecord = Awaited<ReturnType<typeof getTokenBySecret>>;
 const fromList = alias(lists, "from_list");
 const toList = alias(lists, "to_list");
 
+const getCardActivityTypeForAgentAction = (action?: string) => {
+  if (action === "create_card") return "card.created";
+  if (action === "move_card") return "card.updated.list";
+  if (action === "comment_card") return "card.updated.comment.added";
+
+  return undefined;
+};
+
 export const hashAgentToken = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
@@ -414,12 +422,12 @@ export const getRecentCardActivity = async (
 ) => {
   const limit = input.limit ?? 20;
   const actorQuery = input.actor?.trim().toLowerCase();
-  const cardActivityAction =
-    input.action === "move_card"
-      ? eq(cardActivities.type, "card.updated.list")
-      : input.action
-        ? sql`false`
-        : undefined;
+  const cardActivityType = getCardActivityTypeForAgentAction(input.action);
+  const cardActivityAction = cardActivityType
+    ? eq(cardActivities.type, cardActivityType)
+    : input.action
+      ? sql`false`
+      : undefined;
 
   return db
     .select({

@@ -89,6 +89,13 @@ agent read path must not imply that Piotr manually moved a card when Iskra did.
 - `displayActorName`: the user-facing actor
 - `viaAgentTokenName`: agent token name when an agent action is inferred
 - `agentAuditPublicId`: linked audit event when available
+- `fromListPublicId` / `fromListName`
+- `toListPublicId` / `toListName`
+
+For `card.created`, `fromList*` should be `null` and `toList*` should identify
+the initial column. This keeps the activity stream usable as the foundation for
+later flow analytics without guessing a card's starting state from its current
+column.
 
 For Iskra actions, `displayActorName` should be `OpenClaw Iskra MCP`.
 

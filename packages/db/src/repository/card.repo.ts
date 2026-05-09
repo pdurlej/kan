@@ -116,6 +116,7 @@ export const create = async (
       cardId: result[0].id,
       type: "card.created",
       createdBy: cardInput.createdBy,
+      toListId: cardInput.listId,
     });
 
     const countExpr = sql<number>`COUNT(*)`.mapWith(Number);
@@ -375,7 +376,7 @@ export const bulkCreate = async (
     const inserted = await tx
       .insert(cards)
       .values(allValuesToInsert)
-      .returning({ id: cards.id });
+      .returning({ id: cards.id, listId: cards.listId });
 
     // Post-insert: compact per list if duplicates exist; then verify
     const countExpr = sql<number>`COUNT(*)`.mapWith(Number);

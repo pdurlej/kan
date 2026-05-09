@@ -879,6 +879,7 @@ export const createFromSnapshot = async (
           type: "card.created",
           cardId: createdCard.id,
           createdBy: args.createdBy,
+          toListId: newListId,
           sourceBoardId: args.sourceBoardId,
         });
 
